@@ -10,28 +10,42 @@ import requests
 
 headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.76 Safari/537.36'}
 
-url="https://datahub.io/core/covid-19/r/worldwide-aggregated.csv"
+url="https://datahub.io/core/covid-19/r/worldwide-aggregate.csv"
 
 s=requests.get(url, headers= headers).text
 
-df_world=pd.read_csv(StringIO(s)) ## worldwide-aggregated
+
+try:
+    df_world=pd.read_csv(StringIO(s)) ## worldwide-aggregated
+except:
+    df_world = pd.read_csv("data/worldwide-aggregate.csv")
+
 
 url="https://datahub.io/core/covid-19/r/countries-aggregated.csv"
 s=requests.get(url, headers= headers).text
+try:
+    df_con=pd.read_csv(StringIO(s)) ## countries-aggregated
+except:
+    df_con = pd.read_csv("data/countries-aggregated.csv")
 
-df_con=pd.read_csv(StringIO(s)) ## countries-aggregated
 
 url="https://datahub.io/core/covid-19/r/key-countries-pivoted.csv"
 s=requests.get(url, headers= headers).text
-
-df_key=pd.read_csv(StringIO(s)) ## key-countries-pivoted
+try:
+    df_key=pd.read_csv(StringIO(s)) ## key-countries-pivoted
+except:
+    df_key = pd.read_csv("data/key-countries-pivoted.csv")
 
 
 url="https://datahub.io/core/covid-19/r/time-series-19-covid-combined.csv"
 s=requests.get(url, headers= headers).text
 
-df_t=pd.read_csv(StringIO(s)) ## time series
+try:
+    df_t=pd.read_csv(StringIO(s)) ## time series
+except:
+    df_t = pd.read_csv("data/time-series-19-covid-combined.csv")
 
+symp = pd.read_csv('data/symval.csv')
 
 
 df_world['Date'] = pd.to_datetime(df_world['Date'])
@@ -59,8 +73,6 @@ df_c = df_con.copy()
 df_c.drop(columns=['Date'],inplace=True)
 df_c.drop_duplicates(subset='Country',keep='last',inplace = True)
 
-
-symp = pd.read_csv('symval.csv')
 
 
 
@@ -99,6 +111,30 @@ external_stylesheets = [
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 server=app.server
 
+traceformap = dict(type='choropleth',
+             locations=df_c['Country'],
+             locationmode='country names',
+             autocolorscale=False,
+             colorscale='Rainbow',
+             marker=dict(line=dict(color='rgb(255,255,255)', width=1)),
+             z=df_c['Confirmed'], colorbar={'title': 'Colour Range', 'len': 0.5},
+             customdata=np.transpose([df_c['Country'], df_c['Confirmed'], df_c['Recovered'], df_c['Deaths']]),
+             hovertemplate="<br>".join(["<b>Country Name :</b> %{customdata[0]}",
+                                        "<b>Confirmed :</b>%{customdata[1]}",
+                                        "<b>Recovered :</b>%{customdata[2]}",
+                                        "<b>Deaths :</b>%{customdata[3]}"
+                                        ]))
+
+layoutformap = dict(title="Today's View",
+                    font={"size": 15, "color": "White"},
+                    titlefont={"size": 15, "color": "White"},
+                    paper_bgcolor='#0F2027',
+                    margin={"r":30,"t":30,"l":0,"b":30},
+                    plot_bgcolor='#0F2027')
+
+
+
+
 app.layout=html.Div([
     html.Div([
         html.Div([
@@ -132,7 +168,7 @@ app.layout=html.Div([
                 ], className='card-body')
             ], className='card bg-info')
         ], className='col-md-4')
-    ], className='row'),
+    ], className='row mt-5'),
 
 
 
@@ -145,12 +181,11 @@ app.layout=html.Div([
         html.Div([
             html.Div([
                 html.Div([
-                    dcc.Dropdown(id='picker',options=options, value='Confirmed'),
-                    dcc.Graph(id='map')
-                ],className='card-body')
-            ],className='card')
+                    dcc.Graph(id='map',figure={'data': [traceformap],'layout': layoutformap})
+                ])
+            ])
         ],className='col-md-12')
-    ], className='row'),
+    ], className='row mt-5'),
     html.Div([
         html.Div([
             html.Div([
@@ -161,7 +196,7 @@ app.layout=html.Div([
                 ],className='cart-body')
             ],className='card')
         ],className='col-md-12'),
-        ],className='row'),
+        ],className='row mt-5'),
 
 
 
@@ -181,7 +216,7 @@ app.layout=html.Div([
                 ],className='card-body')
             ],className='card')
         ],className='col-md-12')
-    ], className='row'),
+    ], className='row mt-5'),
     html.Div([
         html.Div([
             html.Div([
@@ -191,7 +226,20 @@ app.layout=html.Div([
                 ],className='card-body')
             ],className='card')
         ],className='col-md-12')
-    ], className='row'),
+    ], className='row mt-5'),
+
+    html.Div([
+        html.Div([
+            html.Content('developed by: '),
+            html.A('Sankha Subhra Mondal',
+                   href='https://www.linkedin.com/in/sankha-subhra-mondal-540133168/',
+                   className='text-warning decoration-none'),
+            html.Content(' | '),
+            html.A('Vist GitHub Repository',
+                   href='https://github.com/Sankha1998/covid19_dashboardapp',
+                   className='text-warning decoration-none')
+        ],className='col-md-6 offset-3 text-warning')
+    ],className='row mt-5')
 ], className='container')
 
 
@@ -236,60 +284,5 @@ def update_graph(valu):
                 'layout': layout}
 
 
-
-
-
-
-
-
-@app.callback(Output('map','figure'),[Input('picker','value')])
-def update_map(type):
-    if type == 'Confirmed':
-        trace = dict(type='choropleth',
-                     locations=df_c['Country'],
-                     locationmode='country names',
-                     autocolorscale=False,
-                     colorscale='Rainbow',
-                     marker=dict(line=dict(color='rgb(255,255,255)', width=1)),
-                     z=df_c['Confirmed'], colorbar={'title': 'Colour Range', 'len': 0.5})
-
-        layout = dict(title="Today's View On Confirmed Cases")
-        return {'data': [trace],
-                'layout': layout}
-    elif type == 'Recovered':
-        trace = dict(type='choropleth',
-                     locations=df_c['Country'],
-                     locationmode='country names',
-                     autocolorscale=False,
-                     colorscale='Rainbow',
-                     marker=dict(line=dict(color='rgb(255,255,255)', width=1)),
-                     z=df_c['Recovered'], colorbar={'title': 'Colour Range', 'len': 0.5})
-
-        layout = dict(title="Today's View On Recovered")
-        return {'data': [trace],
-                'layout': layout}
-    else:
-        trace = dict(type='choropleth',
-                     locations=df_c['Country'],
-                     locationmode='country names',
-                     autocolorscale=False,
-                     colorscale='Rainbow',
-                     marker=dict(line=dict(color='rgb(255,255,255)', width=1)),
-                     z=df_c['Deaths'], colorbar={'title': 'Colour Range', 'len': 0.5})
-
-        layout = dict(title="Today's View On Deaths")
-        return {'data': [trace],
-                'layout': layout}
-
-
-
-
-
-
-
-
-
-
-
 if __name__=="__main__":
-   app.run_server(debug=False)
+   app.run_server(debug=True)
